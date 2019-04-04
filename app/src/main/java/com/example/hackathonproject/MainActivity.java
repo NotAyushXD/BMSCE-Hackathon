@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
+import android.net.Uri;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
@@ -24,10 +25,13 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int CAMERA_REQUEST = 14234;
     private static final int MY_CAMERA_PERMISSION_CODE = 324;
+    private static final int PICK_IMAGE = 34525;
     Button btnScan;
     TextView tvText;
     ImageView ivImage;
     Bitmap image;
+
+    Uri imageUri;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,6 +75,21 @@ public class MainActivity extends AppCompatActivity {
                 recogniseImageText(image);
             }
         });
+
+        ivImage.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openImageFromGallery();
+            }
+        });
+
+    }
+
+    private void openImageFromGallery() {
+        Intent gallery = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.INTERNAL_CONTENT_URI);
+        startActivityForResult(gallery, PICK_IMAGE);
+
+
     }
 
     @Override
@@ -88,9 +107,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     protected void onActivityResult(int req, int resultCode, Intent data) {
-        if (req == CAMERA_REQUEST && resultCode == Activity.RESULT_OK) {
-            Bitmap photo = (Bitmap) data.getExtras().get("data");
-            ivImage.setImageBitmap(photo);
+        super.onActivityResult(req, resultCode, data);
+        if(resultCode == RESULT_OK && req == PICK_IMAGE){
+            imageUri = data.getData();
+            ivImage.setImageURI(imageUri);
         }
     }
 
