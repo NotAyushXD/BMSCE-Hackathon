@@ -9,6 +9,7 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.StrictMode;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -19,9 +20,11 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
@@ -54,9 +57,9 @@ public class MainActivity extends AppCompatActivity {
     private static final int DATA_SEND_REQUEST_CODE = 121;
     ImageView ivImage;
 
-    SwipeLayout swipeLayout;
-    Button btnSendDataToServer;
+    private static final String TAG = "MainActivity";
 
+    Button btnSendDataToServer;
 
     ArrayList<String> dataList;
 
@@ -71,18 +74,28 @@ public class MainActivity extends AppCompatActivity {
     Uri image_uri;
 
     RecyclerView rvDataHolder;
+    StringBuilder sb;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        if (android.os.Build.VERSION.SDK_INT > 9)
+        {
+            StrictMode.ThreadPolicy policy = new
+                    StrictMode.ThreadPolicy.Builder().permitAll().build();
+            StrictMode.setThreadPolicy(policy);
+        }
+
         ActionBar actionBar = getSupportActionBar();
         actionBar.setSubtitle("Click the image icon to insert Image");
 
         ivImage = findViewById(R.id.ivImage);
         rvDataHolder = findViewById(R.id.rvDataHolder);
         btnSendDataToServer = findViewById(R.id.btnSendDataToServer);
+        Log.d(TAG, "onCreate: button instantiated 91");
 
         cameraPermission = new String[]{
                 Manifest.permission.CAMERA,
@@ -100,6 +113,23 @@ public class MainActivity extends AppCompatActivity {
 //                Uri.parse("package:" + getPackageName()));
 //        finish();
 //        startActivity(intent);
+
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        btnSendDataToServer.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Log.d(TAG, "onClick: button on click started 119");
+                Intent i = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                Log.d(TAG, "onClick: requesting the picture 121");
+                startActivityForResult(i, DATA_SEND_REQUEST_CODE);
+                Log.d(TAG, "onClick: requesting the picture 123");
+            }
+        });
 
     }
 
@@ -221,11 +251,16 @@ public class MainActivity extends AppCompatActivity {
                 CropImage.activity(data.getData())
                         .setGuidelines(CropImageView.Guidelines.ON)
                         .start(this);
+
+                btnSendDataToServer.setEnabled(true);
+
             }
             if (requestCode == IMAGE_PICK_CAMERA_CODE) {
                 CropImage.activity(image_uri)
                         .setGuidelines(CropImageView.Guidelines.ON)
                         .start(this);
+
+                btnSendDataToServer.setEnabled(true);
             }
 
         }
@@ -238,6 +273,7 @@ public class MainActivity extends AppCompatActivity {
 
                 BitmapDrawable bitmapDrawable = (BitmapDrawable) ivImage.getDrawable();
                 Bitmap bitmap = bitmapDrawable.getBitmap();
+
 
                 TextRecognizer recognizer = new TextRecognizer.Builder(getApplicationContext()).build();
                 if (!recognizer.isOperational()) {
@@ -254,7 +290,12 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
 
-//                    DataAdapter adapter = new DataAdapter(this, dataList);
+                    sb = new StringBuilder();
+                    for(String str: dataList){
+                        sb.append(str);
+                        sb.append("\n");
+                    }
+
                     SwipeRecyclerAdapter adapter = new SwipeRecyclerAdapter(this, dataList);
                     LinearLayoutManager linearLayoutManager = new LinearLayoutManager(this);
                     rvDataHolder.setLayoutManager(linearLayoutManager);
@@ -274,17 +315,16 @@ public class MainActivity extends AppCompatActivity {
 
         if (requestCode == DATA_SEND_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
 
-            //getting the image Uri
+            Log.d(TAG, "onActivityResult: --------->>>>>sending to server result came");
+
             Uri imageUri = data.getData();
             try {
-                //getting bitmap object from uri
-                Bitmap bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageUri);
 
-                //displaying selected image to imageview
+                Bitmap bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageUri);
                 ivImage.setImageBitmap(bitmap);
 
-                //calling the method uploadBitmap to upload image
                 uploadBitmap(bitmap);
+
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -294,11 +334,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void uploadBitmap(final Bitmap bitmap) {
 
-        //getting the tag from the edittext
         Date date = new Date();
         final String tags = String.valueOf(date.hashCode());
 
-        //our custom volley request
         VolleyMultipartRequest volleyMultipartRequest = new VolleyMultipartRequest(Request.Method.POST, EndPoints.UPLOAD_URL,
                 new Response.Listener<NetworkResponse>() {
                     @Override
@@ -314,16 +352,10 @@ public class MainActivity extends AppCompatActivity {
                 new Response.ErrorListener() {
                     @Override
                     public void onErrorResponse(VolleyError error) {
-                        Toast.makeText(getApplicationContext(), error.getMessage(), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(getApplicationContext(), "Kiran" + error.getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 }) {
 
-            /*
-             * If you want to add more parameters with the image
-             * you can do it here
-             * here we have only one parameter with the image
-             * which is tags
-             * */
             @Override
             protected Map<String, String> getParams() throws AuthFailureError {
                 Map<String, String> params = new HashMap<>();
@@ -331,19 +363,15 @@ public class MainActivity extends AppCompatActivity {
                 return params;
             }
 
-            /*
-             * Here we are passing image by renaming it with a unique name
-             * */
             @Override
             protected Map<String, DataPart> getByteData() {
                 Map<String, DataPart> params = new HashMap<>();
                 long imagename = System.currentTimeMillis();
-                params.put("pic", new DataPart(imagename + ".png", getFileDataFromDrawable(bitmap)));
+                params.put("pic", new DataPart("Data-" + imagename + ".txt", sb.toString().getBytes()));
                 return params;
             }
         };
 
-        //adding the request to volley
         Volley.newRequestQueue(this).add(volleyMultipartRequest);
     }
 
